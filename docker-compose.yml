@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pp-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-paintandpetals}
+      POSTGRES_USER: ${POSTGRES_USER:-pp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pp_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pp_user} -d ${POSTGRES_DB:-paintandpetals}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pp-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-paintandpetals}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-pp_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-pp_secret}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-min-32-characters-long!!}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@paintandpetals.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@PaintPetals2024!}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api}
+        VITE_RAZORPAY_KEY_ID: ${VITE_RAZORPAY_KEY_ID:-}
+    container_name: pp-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
